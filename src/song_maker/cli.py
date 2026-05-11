@@ -2006,3 +2006,226 @@ def config(
 
     cfg.save_config(current)
     console.print(f"\n  [green]설정 저장 완료[/green]: {cfg.CONFIG_PATH}")
+
+
+# ========== 페르소나 메이크 자동화 워크플로우 명령 ==========
+
+@app.command()
+def transform(
+    title: str = typer.Option(..., "--title", "-t", help="새 영어 제목 (페르소나 시트 C열)"),
+    subject: str = typer.Option(..., "--subject", "-s", help="새 가사 내용 한국어 설명 (E열)"),
+    lyrics_file: Optional[str] = typer.Option(
+        None, "--lyrics-file", "-f", help="원곡 가사 파일 경로 (페르소나 시트 G열)"
+    ),
+    lyrics: Optional[str] = typer.Option(
+        None, "--lyrics", "-l", help="원곡 가사 텍스트 직접 입력 (--lyrics-file과 둘 중 하나)"
+    ),
+    out: Optional[str] = typer.Option(
+        None, "--out", "-o", help="출력 파일 (미지정 시 stdout)"
+    ),
+) -> None:
+    """원곡 가사를 5규칙(음절수·다른 단어·'/' 유지·발라드 감성·저작권 안전)으로 변환.
+
+    Gemini 텍스트 모델 사용. 페르소나 메이크 자동화 시트의 G열(원가사) →
+    C(영문 제목) + E(내용) 기반으로 → J열(새 가사) 생성용.
+    """
+    from pathlib import Path
+
+    from song_maker.transform.lyric import transform_lyrics
+
+    config = cfg.load_config()
+
+    # 원가사 로드
+    if lyrics_file:
+        original = Path(lyrics_file).read_text(encoding="utf-8").strip()
+    elif lyrics:
+        original = lyrics.strip()
+    else:
+        console.print("  [red][에러][/red] --lyrics-file 또는 --lyrics 중 하나는 필요합니다.")
+        raise typer.Exit(1)
+
+    if not original:
+        console.print("  [red][에러][/red] 원가사가 비어있습니다.")
+        raise typer.Exit(1)
+
+    console.print(f"  원가사: {len(original)}자")
+    console.print(f"  새 제목: {title}")
+    console.print(f"  내용: {subject}")
+    console.print(f"  Gemini 호출 중... (모델: {cfg.get(config, 'gemini', 'text_model')})\n")
+
+    try:
+        new_lyrics = transform_lyrics(config, original, title, subject)
+    except Exception as e:
+        console.print(f"  [red][에러][/red] {e}")
+        raise typer.Exit(1)
+
+    if out:
+        out_path = Path(out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(new_lyrics, encoding="utf-8")
+        console.print(f"  [green][저장][/green] {out_path} ({len(new_lyrics)}자)")
+    else:
+        console.print("  [green][결과][/green]")
+        console.print(new_lyrics)
+
+
+@app.command(name="transform-batch")
+def transform_batch_cmd(
+    sheet: Optional[str] = typer.Option(None, "--sheet", help="시트 ID 오버라이드"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="시트에 안 쓰고 결과만 표시"),
+) -> None:
+    """페르소나 시트에서 G(원가사) 있고 J(새가사) 비어있는 행을 일괄 변환.
+
+    각 행에 대해:
+      G + Title1 + Subject → 5규칙 변환 → J(Song Lyric) 갱신
+    Status는 변경하지 않음 (B열은 사용자가 'DO IT'으로 트리거).
+    """
+    from song_maker.sheet.client import open_sheet
+    from song_maker.sheet.persona_client import (
+        fetch_persona_needs_transform,
+        verify_persona_schema,
+        write_transformed_lyric,
+    )
+    from song_maker.transform.lyric import transform_lyrics
+
+    config = cfg.load_config()
+    sa_path = cfg.get(config, "sheets", "service_account_path")
+    sheet_id = sheet or cfg.get(config, "sheets", "default_sheet_id")
+    worksheet = cfg.get(config, "sheets", "worksheet") or None
+
+    if not sheet_id:
+        console.print("  [red][에러][/red] 시트 ID 미설정. --sheet 또는 config 등록 필요.")
+        raise typer.Exit(1)
+
+    ws = open_sheet(sa_path, sheet_id, worksheet)
+    ok, issues = verify_persona_schema(ws)
+    if not ok:
+        console.print("  [yellow]시트 헤더가 페르소나 메이크 자동화 스키마와 다름:[/yellow]")
+        for i in issues:
+            console.print(f"    {i}")
+        console.print("  계속 진행은 위험합니다. 헤더 정렬 후 다시 시도하세요.")
+        raise typer.Exit(1)
+
+    rows = fetch_persona_needs_transform(ws)
+    console.print(f"  변환 대상 행: {len(rows)}")
+    if not rows:
+        console.print("  [dim]변환할 행 없음 (G있고 J비어있는 행이 0건).[/dim]")
+        return
+
+    for r in rows:
+        sheet_row = r["sheet_row"]
+        title = r.get("Title1", "")
+        subject = r.get("Subject", "")
+        original = r.get("Original Lyric", "")
+        console.print(f"\n  [row {sheet_row}] {title}")
+        try:
+            new = transform_lyrics(config, original, title, subject)
+            console.print(f"    변환 완료 ({len(new)}자)")
+            if dry_run:
+                console.print(f"    [dim]dry-run: 시트 미반영[/dim]")
+            else:
+                write_transformed_lyric(ws, sheet_row, new)
+                console.print(f"    [green]J열 갱신 완료[/green]")
+        except Exception as e:
+            console.print(f"    [red][실패][/red] {e}")
+
+
+@app.command(name="batch-persona")
+def batch_persona_cmd(
+    sheet: Optional[str] = typer.Option(None, "--sheet", help="시트 ID 오버라이드"),
+    project: Optional[str] = typer.Option(None, "--project", "-p", help="프로젝트 이름"),
+    skip_image: bool = typer.Option(False, "--skip-image", help="이미지 생성 스킵"),
+) -> None:
+    """페르소나 메이크 자동화 시트의 트리거된 행을 Suno로 일괄 처리.
+
+    조건: Status가 비어있거나 'DO IT'/'pending'/'ready'면서 Song Lyric(J)이 채워진 행.
+    각 행: Suno custom_generate → audio.mp3 다운로드 → Gemini 썸네일 → Music URL(K)에 audio_url 기록.
+    """
+    from song_maker.creator.suno import generate_song_direct, verify_gate3
+    from song_maker.imager.gemini import generate_images, verify_gate4
+    from song_maker.sheet.client import open_sheet
+    from song_maker.sheet.persona_client import (
+        fetch_persona_pending,
+        mark_persona_done,
+        mark_persona_failed,
+        mark_persona_processing,
+        row_to_persona_song_request,
+        verify_persona_schema,
+    )
+    from song_maker.storage import (
+        create_song,
+        generate_project_name,
+        get_song_dir,
+        save_song_meta,
+    )
+    from song_maker.gates import run_gate
+
+    config = cfg.load_config()
+    sa_path = cfg.get(config, "sheets", "service_account_path")
+    sheet_id = sheet or cfg.get(config, "sheets", "default_sheet_id")
+    worksheet = cfg.get(config, "sheets", "worksheet") or None
+
+    if not sheet_id:
+        console.print("  [red][에러][/red] 시트 ID 미설정.")
+        raise typer.Exit(1)
+
+    ws = open_sheet(sa_path, sheet_id, worksheet)
+    ok, issues = verify_persona_schema(ws)
+    if not ok:
+        console.print("  [yellow]페르소나 스키마 불일치:[/yellow]")
+        for i in issues:
+            console.print(f"    {i}")
+        raise typer.Exit(1)
+
+    pending = fetch_persona_pending(ws)
+    console.print(f"  처리 대상: {len(pending)}곡")
+    if not pending:
+        console.print("  [dim]Suno로 보낼 행 없음.[/dim]")
+        return
+
+    project_name = project or generate_project_name()
+
+    for r in pending:
+        sheet_row = r["sheet_row"]
+        title = r.get("Title1", "")
+        console.print(f"\n  [row {sheet_row}] {title}")
+
+        mark_persona_processing(ws, sheet_row)
+        try:
+            req = row_to_persona_song_request(r)
+            song = create_song(project_name, req)
+            song.suno_title = req.suno_title
+            song.suno_lyrics = req.suno_lyrics
+            song.suno_tags = req.suno_tags
+            song.suno_persona_id = req.suno_persona_id
+            song.sheet_row = sheet_row
+            song_dir = get_song_dir(project_name, song.id)
+
+            # Suno
+            song = generate_song_direct(config, song, song_dir)
+            save_song_meta(project_name, song)
+            gate3 = verify_gate3(song, song_dir)
+            song.gates["gate3"] = gate3.to_dict()
+            if not run_gate(gate3, "곡 생성"):
+                mark_persona_failed(ws, sheet_row, "Gate 3 차단")
+                continue
+
+            # 이미지 (선택)
+            if not skip_image:
+                song = generate_images(config, song, song_dir)
+                save_song_meta(project_name, song)
+                gate4 = verify_gate4(song, song_dir)
+                song.gates["gate4"] = gate4.to_dict()
+                run_gate(gate4, "이미지 생성")
+
+            # 시트 반영
+            audio_url = song.suno_audio_url or ""
+            mark_persona_done(ws, sheet_row, music_url=audio_url, song_id=song.id)
+            save_song_meta(project_name, song)
+            console.print(f"  [green]완료[/green]: {song.id}")
+
+        except Exception as e:
+            console.print(f"  [red][실패][/red] {e}")
+            mark_persona_failed(ws, sheet_row, str(e))
+
+    console.print(f"\n  프로젝트: {project_name}")

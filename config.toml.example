@@ -20,8 +20,8 @@ api_key = ""                         # Google AI Studio에서 발급
 model = "gemini-2.5-flash-image"             # 안정 (preview 아님)
 fallback_model = "gemini-3.1-flash-image-preview"   # 최신 preview
 # 텍스트 생성 모델 (번역기, 메타데이터 후킹 등)
-text_model = "gemini-3-flash-preview"
-text_fallback_model = "gemini-2.5-flash"
+text_model = "gemini-2.5-flash"             # 안정 메인 (text generation)
+text_fallback_model = "gemini-3-flash-preview"  # 최신 preview (실패 시 fallback)
 
 [render]
 resolution = "1920x1080"

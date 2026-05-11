@@ -27,9 +27,10 @@ DEFAULT_CONFIG = {
         # 이미지 생성 모델 (2026-05 ListModels 기준 실제 사용 가능)
         "model": "gemini-2.5-flash-image",
         "fallback_model": "gemini-3.1-flash-image-preview",
-        # 텍스트 생성 모델 (번역기, 메타데이터 후킹 등)
-        "text_model": "gemini-3-flash-preview",
-        "text_fallback_model": "gemini-2.5-flash",
+        # 텍스트 생성 모델 (번역기, 가사 변환 등). 안정성 우선 = 2.5-flash
+        # preview 모델은 503 UNAVAILABLE 빈도 높아 fallback 우선순위
+        "text_model": "gemini-2.5-flash",
+        "text_fallback_model": "gemini-3-flash-preview",
     },
     "render": {
         "resolution": "1920x1080",

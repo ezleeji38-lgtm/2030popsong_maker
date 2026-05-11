@@ -63,12 +63,18 @@ song_maker/
 ├── uploader/           ─── [Stage 6] YouTube 업로드 (선택, 본 운영은 수동 업로드)
 │   └── youtube.py      ─── YouTube Data API v3 + OAuth 2.0
 │
-├── sheet/              ─── Google Sheets 통합 (Phase 1 핵심)
-│   ├── client.py       ─── gspread + Service Account
-│   │                       ├─ 12컬럼 스키마 (HEADERS 상수)
+├── sheet/              ─── Google Sheets 통합 (Phase 1 + Phase 2)
+│   ├── client.py       ─── 기본 12컬럼 스키마 (status/title/lyrics/...)
 │   │                       ├─ verify_schema / fetch_pending_rows
 │   │                       ├─ mark_processing/done/failed (batch_update — API 1회/곡)
 │   │                       └─ append_pending_row (챗봇 → 시트 한 행)
+│   ├── persona_client.py ─ 페르소나 메이크 자동화 12컬럼 어댑터 (Phase 2)
+│   │                       (Index/Status/Title1/Title2/Subject/Original Song/
+│   │                        Original Lyric/Tag/Neg_tag/Song Lyric/Music URL/Persona ID)
+│   │                       ├─ fetch_persona_pending — Status 트리거 + J 채워진 행
+│   │                       ├─ fetch_persona_needs_transform — G 있고 J 비어있는 행
+│   │                       ├─ write_transformed_lyric (J열 갱신)
+│   │                       └─ mark_persona_done/failed (K=Music URL, B=DONE/FAILED)
 │   └── parse.py        ─── 챗봇 출력 파서 (TITLE/TAGS/LYRICS/PERSONA_ID)
 │                           markdown(`**`, `##`)·이모지·한국어 콜론(：) 허용
 │
@@ -78,6 +84,10 @@ song_maker/
 │
 ├── translator/         ─── Gemini 다국어 번역 (YouTube localizations용 50개 언어)
 │   └── translate.py    ─── google-genai SDK + JSON 응답 파싱
+│
+├── transform/          ─── 가사 5규칙 변환 (원곡 + 새 제목·내용 → 새 가사)
+│   └── lyric.py        ─── google-genai 텍스트 모델 + 5규칙 프롬프트 임베드
+│                            (음절수, 다른 단어, '/' 유지, 발라드 감성, 저작권 안전)
 │
 ├── playlist/           ─── 플레이리스트 챕터 타임라인
 │   └── timeline.py     ─── 곡 묶음 → YouTube 챕터 텍스트 (00:00 Song Title 형식)

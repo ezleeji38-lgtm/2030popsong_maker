@@ -120,7 +120,53 @@ HTTP/2 200
 
 ---
 
-## 5. 코드 품질 — 자체 검증
+## 5. 5규칙 가사 변환 — `songmaker transform` 실증
+
+페르소나 메이크 자동화 워크플로우의 핵심 — 원곡 가사 + 새 제목/내용 → Gemini가 5규칙으로 자동 변환.
+
+```bash
+$ songmaker transform \
+    --title "Eaves Minute" \
+    --subject "처마 밑에 잠시 같이 멈춘 일 분의 정적" \
+    --lyrics-file sample_lyrics.txt
+```
+
+입력 (원곡 가사 일부):
+```
+[Verse 1]
+Late night, on read again
+Three dots and they vanish
+Same routine, you spell it out
+
+[Chorus]
+You're a midnight replay
+Looping in my head all day
+```
+
+실제 출력 (gemini-2.5-flash 호출 결과):
+```
+[Verse 1]
+밤, 정적 속 잠시
+그 찰나 사라져
+늘 같은 길 위 서 있어
+
+[Chorus]
+이 멈춘 채 흘러
+내 맘 속에 늘 그 맘
+```
+
+5규칙 적용 확인:
+- ✅ 섹션 마커 `[Verse 1]`, `[Chorus]` 그대로 유지
+- ✅ 라인별 음절수 비슷 (`Late night, on read again` → `밤, 정적 속 잠시`)
+- ✅ 단어 완전 교체 (원곡과 같은 단어 0개)
+- ✅ 잔잔한 발라드 톤 (감성적+현실적)
+- ✅ 저작권 안전 (단어/구절 직접 복제 없음)
+
+이 변환된 가사가 페르소나 시트 J(Song Lyric) 컬럼으로 들어가고, `songmaker batch-persona`가 Suno에 전달.
+
+---
+
+## 6. 코드 품질 — 자체 검증
 
 - AST 파싱: 모든 Python 파일 (`python3 -m compileall src/song_maker`) 통과
 - CLI 19개 명령 import: 모두 정상 (`typer.testing.CliRunner`로 일괄 헬프 호출 통과)
@@ -131,7 +177,7 @@ HTTP/2 200
 
 ---
 
-## 6. 실제 코드 행수
+## 7. 실제 코드 행수
 
 ```
 src/song_maker/cli.py            2008 lines  ─ 23개 명령 라우팅
