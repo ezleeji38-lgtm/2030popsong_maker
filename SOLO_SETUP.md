@@ -337,13 +337,16 @@ crontab -e
 **1회 발행 = 15곡 신규 생성 → CapCut에서 15곡을 2번 이어붙임 → 약 90분 플레이리스트 영상**
 
 ```
-[페르소나 시트에 15행 시드 입력]
-  C(영문 제목) / D(한글 제목) / E(내용) / F(원곡) / G(원가사) / H(태그) / I(neg) / L(persona)
-  ↓
+[(첫 셋업 1회) songmaker init-persona-sheet — 12컬럼 헤더 자동 작성]
+   ↓
+[songmaker seed-push --count 15 — 컨셉 마크다운에서 C/D/E 자동 입력]
+   ↓
+[수동: 각 행에 F(원곡)/G(원가사)/H(태그)/I(neg)/L(persona) 채우기]
+   ↓
 [songmaker transform-batch]   ← 15행 G+C+E → J(새 가사) 자동 변환 (~3분, Gemini)
-  ↓
+   ↓
 [15행 모두 B열을 "DO IT"으로 변경]
-  ↓
+   ↓
 [songmaker batch-persona]     ← Suno + Gemini 일괄 (~45분 소요, 곡당 ~3분)
   → 15 mp3 + 15 thumbnail이 ~/CapCut/inbox/{project}/에 복사됨
   → 시트 K열에 Music URL 자동 기록

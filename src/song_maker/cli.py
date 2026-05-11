@@ -2229,3 +2229,164 @@ def batch_persona_cmd(
             mark_persona_failed(ws, sheet_row, str(e))
 
     console.print(f"\n  프로젝트: {project_name}")
+
+
+@app.command(name="init-persona-sheet")
+def init_persona_sheet_cmd(
+    sheet: Optional[str] = typer.Option(None, "--sheet", help="시트 ID (미지정 시 config의 default_sheet_id)"),
+    force: bool = typer.Option(False, "--force", help="기존 헤더가 있어도 덮어쓰기"),
+) -> None:
+    """페르소나 메이크 자동화 시트의 1행에 12컬럼 헤더 자동 작성.
+
+    빈 구글 시트를 만든 직후 한 번 실행하면 됨.
+    헤더가 이미 있으면 차이만 표시하고 멈춤 (--force로 덮어쓰기 가능).
+    """
+    from song_maker.sheet.client import open_sheet
+    from song_maker.sheet.persona_client import PERSONA_HEADERS, verify_persona_schema
+
+    config = cfg.load_config()
+    sa_path = cfg.get(config, "sheets", "service_account_path")
+    sheet_id = sheet or cfg.get(config, "sheets", "default_sheet_id")
+    worksheet = cfg.get(config, "sheets", "worksheet") or None
+
+    if not sheet_id:
+        console.print("  [red][에러][/red] 시트 ID 미설정. --sheet 또는 config 등록 필요.")
+        raise typer.Exit(1)
+
+    ws = open_sheet(sa_path, sheet_id, worksheet)
+
+    existing = ws.row_values(1)
+    if any(c.strip() for c in existing) and not force:
+        ok, issues = verify_persona_schema(ws)
+        if ok:
+            console.print(f"  [green]이미 스키마 일치[/green] — 작업 불필요")
+            return
+        console.print("  [yellow]기존 1행이 페르소나 스키마와 다릅니다:[/yellow]")
+        for i in issues:
+            console.print(f"    {i}")
+        console.print("\n  덮어쓰려면 --force 옵션 사용.")
+        raise typer.Exit(1)
+
+    # 헤더 작성
+    ws.update("A1:L1", [PERSONA_HEADERS], value_input_option="RAW")
+    console.print(f"  [green]헤더 작성 완료[/green]: {' | '.join(PERSONA_HEADERS)}")
+    console.print(f"  → 시트 URL: https://docs.google.com/spreadsheets/d/{sheet_id}/edit")
+
+
+def _parse_concept_table_lines(lines: list[str]) -> list[dict]:
+    """song_concepts_2030_monthly.md의 마크다운 표 행을 파싱.
+
+    예상 컬럼 순서: # | 영어 제목 | 한국어 제목 | 한국어 내용
+    """
+    rows = []
+    for line in lines:
+        s = line.strip()
+        if not s.startswith("|") or "---" in s:
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+        # 헤더 행 스킵
+        if cells[0] in ("#", "번호"):
+            continue
+        # 첫 셀이 숫자가 아니면 스킵
+        if not cells[0].lstrip().isdigit():
+            continue
+        rows.append({
+            "title_en": cells[1],
+            "title_kr": cells[2],
+            "subject_kr": cells[3],
+        })
+    return rows
+
+
+@app.command(name="seed-push")
+def seed_push_cmd(
+    file: str = typer.Option(
+        "docs/song_concepts_2030_monthly.md",
+        "--file", "-f",
+        help="컨셉 시드 마크다운 파일 경로",
+    ),
+    sheet: Optional[str] = typer.Option(None, "--sheet", help="시트 ID 오버라이드"),
+    count: int = typer.Option(15, "--count", "-n", help="푸시할 행 수 (기본 15)"),
+    skip: int = typer.Option(0, "--skip", "-s", help="앞에서 건너뛸 행 수"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="시트 미반영, 미리보기만"),
+) -> None:
+    """컨셉 시드 마크다운 → 페르소나 시트의 C/D/E열로 푸시.
+
+    F/G/H/I/L은 비워둠 (사용자가 곡별로 원곡 참고곡과 태그 채움).
+    푸시된 행의 Status(B)도 비워둠 (사용자가 'DO IT'으로 트리거).
+    """
+    from pathlib import Path
+    from song_maker.sheet.client import open_sheet
+    from song_maker.sheet.persona_client import append_persona_seed, verify_persona_schema
+
+    path = Path(file)
+    if not path.exists():
+        console.print(f"  [red][에러][/red] 파일 없음: {path}")
+        raise typer.Exit(1)
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    rows = _parse_concept_table_lines(lines)
+    console.print(f"  파일에서 파싱된 컨셉: {len(rows)}개")
+
+    # skip + count 적용
+    picked = rows[skip : skip + count]
+    console.print(f"  푸시 대상: {len(picked)}개 (skip={skip}, count={count})")
+
+    if not picked:
+        console.print("  [yellow]푸시할 행 없음.[/yellow]")
+        return
+
+    # 미리보기 표
+    table = Table(title="푸시 미리보기")
+    table.add_column("#", width=3)
+    table.add_column("영어 제목", width=25)
+    table.add_column("한국어 제목", width=20)
+    table.add_column("내용", width=40)
+    for i, r in enumerate(picked, start=1):
+        table.add_row(str(i), r["title_en"], r["title_kr"], r["subject_kr"][:60])
+    console.print(table)
+
+    if dry_run:
+        console.print("  [dim]dry-run: 시트 미반영[/dim]")
+        return
+
+    if not typer.confirm("\n  위 행들을 시트에 추가하시겠어요?", default=True):
+        console.print("  취소됨.")
+        raise typer.Exit()
+
+    # 시트 연결
+    config = cfg.load_config()
+    sa_path = cfg.get(config, "sheets", "service_account_path")
+    sheet_id = sheet or cfg.get(config, "sheets", "default_sheet_id")
+    worksheet = cfg.get(config, "sheets", "worksheet") or None
+
+    if not sheet_id:
+        console.print("  [red][에러][/red] 시트 ID 미설정.")
+        raise typer.Exit(1)
+
+    ws = open_sheet(sa_path, sheet_id, worksheet)
+    ok, issues = verify_persona_schema(ws)
+    if not ok:
+        console.print("  [yellow]시트 헤더가 페르소나 스키마와 다름. `songmaker init-persona-sheet` 먼저 실행.[/yellow]")
+        for i in issues:
+            console.print(f"    {i}")
+        raise typer.Exit(1)
+
+    pushed = 0
+    for r in picked:
+        try:
+            row_num = append_persona_seed(
+                ws,
+                title_en=r["title_en"],
+                title_kr=r["title_kr"],
+                subject_kr=r["subject_kr"],
+            )
+            pushed += 1
+            console.print(f"  [{pushed}/{len(picked)}] 행 {row_num} 추가: {r['title_en']}")
+        except Exception as e:
+            console.print(f"  [red][실패][/red] {r['title_en']}: {e}")
+
+    console.print(f"\n  [green]완료[/green]: {pushed}/{len(picked)}개 시트 추가")
+    console.print(f"  다음 단계: 각 행에 F(원곡)/G(원가사)/H(태그)/I(neg)/L(persona) 채우기 → `songmaker transform-batch`")

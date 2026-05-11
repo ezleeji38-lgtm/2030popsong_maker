@@ -14,6 +14,8 @@ ChatGPT 챗봇이 만든 가사 → 구글 시트 → Suno 작곡 → Gemini 썸
 | **5규칙 가사 변환** | `songmaker transform` | 원곡 가사 + 새 제목/내용 → Gemini가 5규칙(음절수·다른 단어·'/' 유지·발라드 감성·저작권 안전)으로 변환 |
 | **시트 가사 일괄 변환** | `songmaker transform-batch` | 페르소나 시트의 G(원가사) 있고 J(새가사) 비어있는 행 자동 변환 |
 | **페르소나 시트 일괄 곡 생성** | `songmaker batch-persona` | 페르소나 메이크 자동화 12컬럼 스키마 그대로 사용. Status=DO IT 행 처리 |
+| **페르소나 시트 헤더 초기화** | `songmaker init-persona-sheet` | 빈 시트에 12컬럼 헤더 자동 작성 (1회 셋업) |
+| **컨셉 시드 시트 푸시** | `songmaker seed-push` | `song_concepts_2030_monthly.md` 마크다운 표 → 시트 C/D/E열 일괄 입력 |
 | **사전 점검** | `songmaker doctor` | 설치·키·서버·시트 접근 일괄 진단 |
 | **사전 lint** | `songmaker lint` | pending 행 사전 검증 (빈 마커, 5000자 한도, 80자 제목 한도, 75% 유사 중복) |
 | **챕터 타임라인** | `songmaker timeline` | 플레이리스트용 YouTube 챕터 텍스트 생성 |
@@ -53,8 +55,13 @@ songmaker batch
 기존 페르소나 메이크 자동화 시트 (12컬럼: Index/Status/Title1/Title2/Subject/Original Song/Original Lyric/Tag/Neg_tag/Song Lyric/Music URL/Persona ID)를 그대로 사용. 원곡 가사(G)를 참고해 새 가사(J)를 자동 변환한 뒤 Suno로 음악 생성.
 
 ```bash
-# 시트에 시드 입력: C(영문 제목) / D(한글 제목) / E(내용) / F(원곡) / G(원가사) / H(태그) / I(neg) / L(persona)
-# (수동 또는 챗봇으로)
+# 1회 셋업: 빈 시트에 12컬럼 헤더 자동 작성
+songmaker init-persona-sheet
+
+# 컨셉 시드 15개를 시트 C/D/E열로 일괄 푸시
+songmaker seed-push --count 15
+
+# (수동) 각 행에 F(원곡)/G(원가사)/H(태그)/I(neg)/L(persona) 채우기
 
 # 가사 5규칙 변환 — G + Title1 + Subject → J 채움 (Gemini)
 songmaker transform-batch
