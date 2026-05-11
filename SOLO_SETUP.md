@@ -344,7 +344,7 @@ crontab -e
   ↓
 [15행 모두 B열을 "DO IT"으로 변경]
   ↓
-[songmaker batch-persona]     ← Suno + Gemini 일괄 (~75분 소요, 곡당 ~5분)
+[songmaker batch-persona]     ← Suno + Gemini 일괄 (~45분 소요, 곡당 ~3분)
   → 15 mp3 + 15 thumbnail이 ~/CapCut/inbox/{project}/에 복사됨
   → 시트 K열에 Music URL 자동 기록
   ↓
