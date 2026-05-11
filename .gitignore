@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Song Maker output
+output/
+
+# API keys and auth
+config.toml
+token.json
+client_secret*.json
+*.env
+*.cookie
+
+# IDE / AI 도구
+.vscode/
+.idea/
+*.swp
+.claude/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db

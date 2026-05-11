@@ -1,0 +1,52 @@
+# Song Maker 설정 파일
+# 이 파일을 ~/.songmaker/config.toml 에 복사한 후 값을 채우세요.
+# 또는 songmaker config 명령으로 대화형 설정이 가능합니다.
+
+[youtube]
+api_key = ""                         # Google Cloud Console에서 발급
+client_id = ""                       # OAuth 2.0 Client ID (업로드용)
+client_secret = ""                   # OAuth 2.0 Client Secret (업로드용)
+default_region = "KR"                # 트렌드 조회 지역
+
+[suno]
+api_url = ""    # suno-api 로컬 서버 주소
+cookie = ""                          # Suno 쿠키 (~7일마다 갱신 필요)
+twocaptcha_key = ""                  # 2Captcha API Key (hCaptcha 해결용)
+provider = "local"                   # "local" 또는 "sunoapi.org"
+
+[gemini]
+api_key = ""                         # Google AI Studio에서 발급
+# 이미지 생성 모델
+model = "gemini-2.5-flash-image"             # 안정 (preview 아님)
+fallback_model = "gemini-3.1-flash-image-preview"   # 최신 preview
+# 텍스트 생성 모델 (번역기, 메타데이터 후킹 등)
+text_model = "gemini-3-flash-preview"
+text_fallback_model = "gemini-2.5-flash"
+
+[render]
+resolution = "1920x1080"
+default_fade = 2                     # 페이드인/아웃 (초)
+subtitle_font = ""                   # 빈 값이면 시스템 기본 폰트
+
+[upload]
+default_privacy = "private"          # private / unlisted / public
+
+[sheets]
+# Service Account JSON 파일 (GCP Console에서 발급)
+service_account_path = "~/.songmaker/service_account.json"
+default_sheet_id = ""                # 시트 URL의 /d/<여기>/edit 부분
+worksheet = ""                       # 빈 값이면 첫 번째 시트
+
+[capcut]
+inbox_dir = "~/CapCut/inbox"         # songmaker 출력 → CapCut import용
+outbox_dir = "~/CapCut/outbox"       # CapCut export → songmaker upload용
+
+[drive]
+lyrics_parent_folder_id = ""         # Drive에서 SongMaker 폴더 만들고 SA에 공유 후 ID 입력
+archive_enabled = false              # true면 batch 처리 시 가사를 일별 폴더에 자동 업로드
+
+[output]
+# 작업 결과물 저장 루트. 빈 값이면 cwd/output (cron 사용 시 절대경로 권장)
+# 예: dir = "~/.songmaker/output"
+dir = ""
+
