@@ -332,6 +332,40 @@ crontab -e
    songmaker upload-capcut --all --privacy private
    ```
 
+### 표준 발행 사이클 (주 2-3회)
+
+**1회 발행 = 15곡 신규 생성 → CapCut에서 15곡을 2번 이어붙임 → 약 90분 플레이리스트 영상**
+
+```
+[페르소나 시트에 15행 시드 입력]
+  C(영문 제목) / D(한글 제목) / E(내용) / F(원곡) / G(원가사) / H(태그) / I(neg) / L(persona)
+  ↓
+[songmaker transform-batch]   ← 15행 G+C+E → J(새 가사) 자동 변환 (~3분, Gemini)
+  ↓
+[15행 모두 B열을 "DO IT"으로 변경]
+  ↓
+[songmaker batch-persona]     ← Suno + Gemini 일괄 (~75분 소요, 곡당 ~5분)
+  → 15 mp3 + 15 thumbnail이 ~/CapCut/inbox/{project}/에 복사됨
+  → 시트 K열에 Music URL 자동 기록
+  ↓
+[CapCut]
+  - 15곡 시퀀스 만들기
+  - 그 시퀀스를 한 번 더 복사해서 이어붙임 (= 15곡 × 2 루프)
+  - 자막·페이드·로고 추가, 90분 mp4 export
+  ↓
+[songmaker timeline ~/CapCut/playlist/...]   ← 30챕터 텍스트 자동 생성
+  → YouTube 설명란에 붙여넣기
+  ↓
+[수동 YouTube 업로드]
+  - 비공개 → 검수 → 공개
+```
+
+**Suno 크레딧 예산** (Premier 10,000/월 기준):
+- 1곡 ~500 크레딧 가정 → 월 20곡 가능
+- 주 2회 × 15곡 = 월 120곡 필요 → **부족 가능성 높음**
+- 실제 크레딧 측정: 첫 batch 후 `songmaker credits` 확인
+- 부족하면 Pro 추가 구독 ($10/월) 또는 발행 빈도 조정
+
 ### 주간 1회 (10분)
 - Suno 쿠키 갱신 (suno.com → F12 → Cookie 복사 → Docker 재시작)
 - `songmaker doctor` 재실행해서 외부 의존성 OK 확인
